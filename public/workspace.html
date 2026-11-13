@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIRIHOTDRAMA · 工作区</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/drama.css">
+  <link rel="stylesheet" href="/workspace.css">
+  <script src="/vendor/lucide.js" defer></script>
+  <script src="/workspace.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/drama.html"><span class="brand-mark"><i data-lucide="zap"></i></span>SIRIHOTDRAMA <span class="divider">/</span><strong>工作区</strong></a>
+    <div class="system-state" id="health"><span class="dot"></span>检查服务中</div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar" aria-label="工作区导航">
+      <a class="side-item" href="/#reverse"><i data-lucide="scan-search"></i>图片反推提示词</a>
+      <a class="side-item" href="/#idea"><i data-lucide="lightbulb"></i>灵感成片</a>
+      <a class="side-item" href="/#gallery"><i data-lucide="gallery-vertical-end"></i>精选图片库</a>
+      <a class="side-item" href="/drama.html"><i data-lucide="clapperboard"></i>短剧项目</a>
+      <a class="side-item" href="/drama.html#upload"><i data-lucide="upload"></i>上传视频复刻</a>
+      <a class="side-item" href="#tasks"><i data-lucide="activity"></i>任务中心</a>
+      <a class="side-item" href="#library"><i data-lucide="images"></i>素材库</a>
+      <a class="side-item" href="#characters"><i data-lucide="contact"></i>角色管理</a>
+      <a class="side-item" href="#trials"><i data-lucide="flask-conical"></i>模型试跑</a>
+      <a class="side-item" href="#services"><i data-lucide="plug-zap"></i>AI 服务</a>
+      <a class="side-item" href="#styles"><i data-lucide="palette"></i>风格预设</a>
+      <a class="side-item" href="#agents"><i data-lucide="workflow"></i>Agent 配置</a>
+      <a class="side-item" href="#storage"><i data-lucide="hard-drive"></i>存储与关于</a>
+      <a class="back-link" href="/#agent"><i data-lucide="sparkles"></i>创意 Agent</a>
+    </aside>
+    <main><section>
+      <div class="heading"><div><p class="eyebrow">SIRIHOTDRAMA</p><h1 id="page-title">工作区</h1></div><button class="icon" id="refresh" title="刷新状态" aria-label="刷新状态"><i data-lucide="refresh-cw"></i></button></div>
+      <div id="content" aria-live="polite"></div>
+    </section></main>
+  </div>
+  <dialog id="preview"><div class="dialog-head"><h2 id="preview-title">素材</h2><button class="icon" id="close-preview" title="关闭预览" aria-label="关闭预览"><i data-lucide="x"></i></button></div><div id="preview-body"></div></dialog>
+  <input type="file" id="reference-upload" accept="image/png,image/jpeg" hidden>
+  <div id="notice" role="status" hidden></div>
+</body>
+</html>

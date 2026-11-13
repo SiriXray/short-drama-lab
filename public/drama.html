@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SIRIHOTDRAMA · 短剧工作台</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/drama.css">
+  <script src="/vendor/lucide.js" defer></script>
+  <script src="/drama.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" title="返回创作工作台"><span class="brand-mark"><i data-lucide="zap"></i></span>SIRIHOTDRAMA <span class="divider">/</span> <strong>短剧工作台</strong></a>
+    <div class="system-state" id="health"><span class="dot"></span>检查服务中</div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="side-item" href="/#reverse"><i data-lucide="scan-search"></i>图片反推提示词</a>
+      <a class="side-item" href="/#idea"><i data-lucide="lightbulb"></i>灵感成片</a>
+      <a class="side-item" href="/#gallery"><i data-lucide="gallery-vertical-end"></i>精选图片库</a>
+      <button class="side-item active" id="catalog-nav"><i data-lucide="chart-no-axes-combined"></i>热榜选剧</button>
+      <a class="side-item" href="/workspace.html#tasks"><i data-lucide="activity"></i>任务中心</a>
+      <a class="side-item" href="/workspace.html#library"><i data-lucide="images"></i>素材库</a>
+      <a class="side-item" href="/workspace.html#characters"><i data-lucide="contact"></i>角色管理</a>
+      <a class="side-item" href="/workspace.html#services"><i data-lucide="settings-2"></i>设置中心</a>
+      <div class="side-heading"><span>我的项目</span><button class="icon" id="new-project" title="新建项目" aria-label="新建项目"><i data-lucide="plus"></i></button></div>
+      <nav id="projects" aria-label="短剧项目"></nav>
+      <a class="back-link" href="/"><i data-lucide="arrow-left"></i>广告创作工作台</a>
+    </aside>
+    <main>
+      <section id="catalog-view">
+        <div class="heading"><div><p class="eyebrow">SOURCE DISCOVERY</p><h1>从一部好剧开始</h1></div><button class="button" id="local-project"><i data-lucide="folder-plus"></i>本地分集建项</button></div>
+        <form id="source-form" class="source-bar"><label class="sr-only" for="source-url">榜单或剧集链接</label><i data-lucide="link"></i><input id="source-url" type="url" required value="https://hongguoduanju.com/rank/hot-drama" placeholder="榜单或剧集链接"><select id="metric" aria-label="排序指标"><option value="heat">按热度</option><option value="playCount">按播放量</option></select><button class="button primary" type="submit"><i data-lucide="refresh-cw"></i>读取来源</button></form>
+        <div class="section-title"><h2>红果热播榜</h2><span class="muted" id="captured">尚未读取</span></div>
+        <div id="catalog-result" aria-live="polite"></div>
+      </section>
+      <section id="project-view" hidden>
+        <div class="heading"><div><p class="eyebrow" id="project-kicker">DRAMA PRODUCTION</p><h1 id="project-title"></h1></div><div class="actions"><button class="icon" id="project-settings" title="项目设置" aria-label="项目设置"><i data-lucide="settings-2"></i></button><a id="export" class="button" href="#"><i data-lucide="download"></i>生产包</a></div></div>
+        <div id="agent-track" class="agent-track"></div>
+        <div class="runbar"><div id="job-state" aria-live="polite"></div><div class="actions"><button class="button" id="stop" hidden><i data-lucide="pause"></i>暂停</button><button class="button primary" id="run-all"><i data-lucide="play"></i>运行至成片</button></div></div>
+        <nav class="tabs" id="tabs" aria-label="项目工作区">
+          <button data-tab="production"><i data-lucide="workflow"></i>制作计划</button>
+          <button data-tab="episodes" class="active"><i data-lucide="list-video"></i>片源与分集</button><button data-tab="storyboard"><i data-lucide="scan-search"></i>拉片分镜</button><button data-tab="assets"><i data-lucide="images"></i>角色与资产</button><button data-tab="videos"><i data-lucide="film"></i>镜头视频</button><button data-tab="delivery"><i data-lucide="package-check"></i>成片交付</button>
+        </nav>
+        <div id="project-content"></div>
+        <details class="log-panel"><summary><i data-lucide="activity"></i>运行记录 <span id="log-count"></span></summary><div id="task-records"></div><ol id="events"></ol></details>
+      </section>
+    </main>
+  </div>
+  <dialog id="modal"><form id="modal-form"><div class="dialog-head"><h2 id="modal-title"></h2><button class="icon" type="button" id="close-modal" title="关闭" aria-label="关闭"><i data-lucide="x"></i></button></div><div id="modal-body"></div><div class="dialog-actions"><button class="button" type="button" id="cancel-modal">取消</button><button class="button primary" type="submit" id="modal-submit">保存</button></div></form></dialog>
+  <script src="/drama-upload.js" defer></script>
+  <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-matroska" multiple id="upload-input" hidden>
+  <div id="notice" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SIRIHOTDRAMA - 从创意拆解到 Case 产出的一站式 AI 创作工作台" />
+    <title>SIRIHOTDRAMA</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/creative-workspace.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand" aria-label="SIRIHOTDRAMA">
+          <span class="brand-mark"><i data-lucide="zap"></i></span>
+          <span class="brand-word">SIRIHOTDRAMA</span>
+        </div>
+        <nav class="primary-nav" aria-label="主导航">
+          <a class="nav-button" href="#reverse" data-route="reverse"><i data-lucide="scan-search"></i><span>图片反推提示词</span></a>
+          <a class="nav-button" href="#idea" data-route="idea"><i data-lucide="lightbulb"></i><span>灵感成片</span></a>
+          <a class="nav-button" href="#gallery" data-route="gallery"><i data-lucide="gallery-vertical-end"></i><span>精选图片库</span></a>
+          <a class="nav-button" href="/workspace.html#library"><i data-lucide="images"></i><span>统一素材库</span></a>
+          <a class="nav-button" href="/workspace.html#characters"><i data-lucide="contact"></i><span>角色管理</span></a>
+          <a class="nav-button" href="/workspace.html#trials"><i data-lucide="flask-conical"></i><span>模型试跑</span></a>
+          <a class="nav-button" href="/workspace.html#tasks"><i data-lucide="activity"></i><span>任务中心</span></a>
+          <a class="nav-button" href="/workspace.html#services"><i data-lucide="settings-2"></i><span>设置中心</span></a>
+          <a class="nav-button" href="/drama.html" title="短剧多 Agent 工作台" style="text-decoration:none"><i data-lucide="clapperboard"></i><span>短剧</span></a>
+          <button class="nav-button active" data-view="agent" type="button" title="Agent Studio">
+            <i data-lucide="sparkles"></i><span>创意 Agent</span>
+          </button>
+          <button class="nav-button hidden" data-view="inspiration" type="button" title="灵感库">
+            <i data-lucide="gallery-vertical-end"></i><span>灵感</span>
+          </button>
+          <button class="nav-button" data-view="decompose" type="button" title="创意拆解">
+            <i data-lucide="scan-search"></i><span>拆解</span>
+          </button>
+          <button class="nav-button" data-view="film" type="button" title="广告拉片">
+            <i data-lucide="clapperboard"></i><span>拉片</span>
+          </button>
+          <button class="nav-button hidden" data-view="generate" type="button" title="生成工具">
+            <i data-lucide="wand-sparkles"></i><span>生成</span>
+          </button>
+          <button class="nav-button" data-view="videos" type="button" title="成片库">
+            <i data-lucide="film"></i><span>成片</span><b class="nav-count hidden" id="videoNavCount">0</b>
+          </button>
+          <button class="nav-button" data-view="compare" type="button" title="多模型对比">
+            <i data-lucide="columns-3"></i><span>对比</span>
+          </button>
+          <button class="nav-button" data-view="library" type="button" title="Case 与 Benchmark">
+            <i data-lucide="library-big"></i><span>资产</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <button class="nav-button" id="helpButton" type="button" title="产品说明"><i data-lucide="circle-help"></i><span>说明</span></button>
+          <div class="user-avatar" title="当前角色：tester">T</div>
+        </div>
+      </aside>
+
+      <main class="app-main">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="mobile-menu" id="mobileMenuButton" type="button" title="打开导航"><i data-lucide="menu"></i></button>
+            <div class="breadcrumb"><span>SIRIHOTDRAMA</span><i data-lucide="chevron-right"></i><strong id="viewTitle">创意 Agent</strong></div>
+          </div>
+          <div class="topbar-search">
+            <i data-lucide="search"></i>
+            <input id="globalSearch" type="search" placeholder="搜索 Case、素材、prompt" aria-label="全局搜索" />
+            <kbd>⌘ K</kbd>
+          </div>
+          <div class="topbar-actions">
+            <div class="gateway-state"><span id="statusDot"></span><strong id="modelStatus">连接中</strong><small id="gatewayStatus">--</small></div>
+            <button class="icon-button hidden" id="notificationsButton" type="button" title="通知"><i data-lucide="bell"></i></button>
+          </div>
+        </header>
+
+        <div class="view-stack">
+          <section class="app-view active" id="agentView" data-view-panel="agent" aria-labelledby="agentTitle">
+            <div class="view-heading agent-heading">
+              <div>
+                <span class="section-kicker">AGENT ORCHESTRATION</span>
+                <div class="heading-line"><h1 id="agentTitle">SIRIHOTDRAMA</h1><span class="live-chip"><i></i> LIVE</span></div>
+                <p>让四个专业 Agent 把一个灵感整理成可生产、可评测、可复用的 Case。</p>
+              </div>
+              <div class="heading-actions">
+                <button class="secondary-button" id="newCaseButton" type="button"><i data-lucide="plus"></i>新建 Case</button>
+                <button class="primary-button" id="saveCaseButton" type="button"><i data-lucide="bookmark-plus"></i>保存生产包</button>
+              </div>
+            </div>
+
+            <div class="agent-track" id="agentTrack" aria-label="Agent 生产轨道">
+              <button class="agent-lane active" data-agent="strategist" type="button">
+                <span class="agent-index">01</span><span class="agent-icon strategist"><i data-lucide="compass"></i></span>
+                <span class="agent-copy"><strong>创意策略</strong><small>洞察 / 钩子 / 受众</small></span><span class="lane-status">READY</span>
+              </button>
+              <button class="agent-lane active" data-agent="prompt" type="button">
+                <span class="agent-index">02</span><span class="agent-icon prompt"><i data-lucide="braces"></i></span>
+                <span class="agent-copy"><strong>提示词工程</strong><small>生图 / 视频 / 约束</small></span><span class="lane-status">READY</span>
+              </button>
+              <button class="agent-lane active" data-agent="director" type="button">
+                <span class="agent-index">03</span><span class="agent-icon director"><i data-lucide="clapperboard"></i></span>
+                <span class="agent-copy"><strong>分镜导演</strong><small>镜头 / 动作 / 声音</small></span><span class="lane-status">READY</span>
+              </button>
+              <button class="agent-lane active" data-agent="evaluator" type="button">
+                <span class="agent-index">04</span><span class="agent-icon evaluator"><i data-lucide="badge-check"></i></span>
+                <span class="agent-copy"><strong>评测 Agent</strong><small>风险 / MOS / 验收</small></span><span class="lane-status">READY</span>
+              </button>
+            </div>
+
+            <div class="agent-workspace">
+              <section class="conversation-panel" aria-label="Agent 对话">
+                <div class="panel-toolbar">
+                  <div><span class="panel-label">CURRENT CASE</span><strong id="currentCaseTitle">酒红色时尚产品短片</strong></div>
+                  <div class="toolbar-actions">
+                    <button class="icon-button subtle" id="clearConversationButton" type="button" title="清空对话"><i data-lucide="eraser"></i></button>
+                    <button class="icon-button subtle" id="exportCaseButton" type="button" title="导出 JSON"><i data-lucide="download"></i></button>
+                  </div>
+                </div>
+                <div class="message-list" id="messageList" aria-live="polite"></div>
+                <div class="composer-wrap">
+                  <div class="source-attachment hidden" id="sourceAttachment">
+                    <img id="sourceThumb" alt="当前参考素材" />
+                    <div><strong id="sourceName"></strong><small id="sourceMeta"></small></div>
+                    <button id="removeSourceButton" type="button" title="移除参考素材"><i data-lucide="x"></i></button>
+                  </div>
+                  <div class="composer-mode" role="tablist" aria-label="任务模式">
+                    <button class="active" type="button" data-mode="case">完整 Case</button>
+                    <button type="button" data-mode="reverse">逆推提示词</button>
+                    <button type="button" data-mode="storyboard">导演分镜</button>
+                    <button type="button" data-mode="benchmark">评测方案</button>
+                  </div>
+                  <div class="creative-style-picker" id="creativeStylePicker" role="listbox" aria-label="创意方向">
+                    <button class="creative-style-option active" type="button" data-style-id="auto" role="option" aria-selected="true">
+                      <i data-lucide="wand-sparkles"></i><span><strong>自动匹配</strong><small>从素材判断方向</small></span>
+                    </button>
+                    <button class="creative-style-option" type="button" data-style-id="apple" role="option" aria-selected="false">
+                      <i data-lucide="square-dashed"></i><span><strong>Apple 极简科技</strong><small>留白 / 材质 / 功能</small></span>
+                    </button>
+                    <button class="creative-style-option" type="button" data-style-id="miumiu" role="option" aria-selected="false">
+                      <i data-lucide="flower-2"></i><span><strong>Miu Miu 复古少女</strong><small>学院 / 俏皮 / 时装</small></span>
+                    </button>
+                    <button class="creative-style-option" type="button" data-style-id="cinematic" role="option" aria-selected="false">
+                      <i data-lucide="clapperboard"></i><span><strong>电影叙事</strong><small>情绪 / 光影 / 连续</small></span>
+                    </button>
+                  </div>
+                  <div class="creative-style-preview" id="creativeStylePreview" aria-live="polite"><i data-lucide="sparkles"></i><span><b>自动匹配</b> · 风格提示词会注入关键帧、视频提示词和分镜</span></div>
+                  <div class="composer">
+                    <textarea id="briefInput" rows="3" maxlength="5000" placeholder="描述你看到的创意，或想让画面发生什么……"></textarea>
+                    <div class="composer-footer">
+                      <div class="composer-tools">
+                        <button class="tool-button" id="uploadButton" type="button" title="上传图片"><i data-lucide="paperclip"></i></button>
+                        <button class="tool-button" id="linkButton" type="button" title="使用图片链接"><i data-lucide="link"></i></button>
+                        <button class="tool-button" id="starterButton" type="button" title="插入示例创意"><i data-lucide="lightbulb"></i></button>
+                        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                      </div>
+                      <div class="composer-send"><span><b id="briefCount">0</b>/5000</span><button id="runAgentButton" type="button"><span>运行 Agent</span><i data-lucide="arrow-up"></i></button></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <aside class="production-panel" aria-label="Case 生产包">
+                <div class="panel-toolbar production-toolbar">
+                  <div><span class="panel-label">PRODUCTION PACK</span><strong>生产包</strong></div>
+                  <span class="sync-state"><i></i> 已同步</span>
+                </div>
+                <div class="production-tabs" role="tablist">
+                  <button class="active" type="button" data-production-tab="overview">总览</button>
+                  <button type="button" data-production-tab="storyboard">分镜</button>
+                  <button type="button" data-production-tab="prompts">提示词</button>
+                  <button type="button" data-production-tab="evaluation">评测</button>
+                </div>
+                <div class="production-content" id="productionContent"></div>
+                <div class="production-actions">
+                  <button class="secondary-button" id="compareModelsButton" type="button"><i data-lucide="columns-3"></i>多模型对比</button>
+                  <button class="primary-button" id="startProductionButton" type="button"><i data-lucide="video"></i>进入视频生成</button>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="app-view" id="inspirationView" data-view-panel="inspiration" aria-labelledby="inspirationTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">SIRIHOTDRAMA</span><h1 id="inspirationTitle">精选图片库</h1></div>
+              <div class="heading-actions"><button class="secondary-button" id="galleryUploadButton" type="button"><i data-lucide="upload"></i>上传图片</button><button class="icon-button" id="shuffleButton" type="button" title="刷新图片素材"><i data-lucide="refresh-cw"></i></button></div>
+            </div>
+            <input id="galleryFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+            <p class="gallery-status" id="galleryStatus" role="status"></p>
+            <div class="filter-bar">
+              <div class="filter-tabs" id="inspirationFilters"><button class="active" data-filter="all">全部</button><button data-filter="selected">精选参考</button><button data-filter="favorites">已收藏</button><button data-filter="mine">我的图片</button><button data-filter="production">制作素材</button><button data-filter="fashion">时尚</button><button data-filter="portrait">人物</button><button data-filter="space">空间</button><button data-filter="art">视觉实验</button></div>
+              <div class="gallery-search"><label><span class="sr-only">搜索图片</span><input id="gallerySearch" type="search" placeholder="搜索图片、角色、描述" /></label><label><span class="sr-only">图片排序</span><select id="gallerySort"><option value="recent">最近添加</option><option value="name">按名称</option></select></label></div>
+            </div>
+            <div class="inspiration-grid" id="inspirationGrid"></div>
+          </section>
+
+          <section class="app-view" id="decomposeView" data-view-panel="decompose" aria-labelledby="decomposeTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">CREATIVE DECONSTRUCTION</span><h1 id="decomposeTitle">创意拆解台</h1><p>从外部创意中提取关键帧、提示词、主体场景与分镜计划。</p></div>
+              <button class="primary-button" id="sendDecomposeToAgent" type="button"><i data-lucide="sparkles"></i>交给 Agent</button>
+            </div>
+            <div class="decompose-layout">
+              <section class="source-inspector">
+                <div class="inspector-media"><img id="decomposePreview" src="/assets/red-device.webp" alt="当前关键帧" /><span id="decomposeReferenceLabel">REFERENCE 01</span></div>
+                <div class="inspector-meta"><strong id="decomposeSourceName">red-device.webp</strong><span id="decomposeSourceMeta">1152 × 2048 · 3 张参考</span></div>
+                <div class="frame-strip" id="decomposeFrameStrip" aria-label="关键帧素材"></div>
+                <input id="decomposeFrameInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+              </section>
+              <section class="workflow-board">
+                <div class="workflow-progress"><span class="done">1</span><i></i><span class="done">2</span><i></i><span class="active">3</span><i></i><span>4</span></div>
+                <article class="workflow-step complete"><header><span>STEP 01</span><strong>关键帧选择</strong><b id="decomposeFrameCount">3 帧</b></header><p id="decomposeFrameStatus">已选择 3 张参考。点击缩略图切换主图，点击 + 可持续补充素材。</p></article>
+                <article class="workflow-step complete"><header><span>STEP 02</span><strong>逆推提示词</strong><button type="button" data-copy="高端时尚棚拍，人物手持酒红色设备，柔和正面光，精致妆容，商业美妆摄影。"><i data-lucide="copy"></i></button></header><textarea rows="4">高端时尚棚拍，人物手持酒红色设备，柔和正面光，精致妆容，黑色与酒红色搭配，商业美妆摄影，浅景深。</textarea></article>
+                <article class="workflow-step active"><header><span>STEP 03</span><strong>主体与场景</strong><b>处理中</b></header><div class="entity-row"><span>长发人物</span><span>酒红色设备</span><span>银色首饰</span><span>浅灰摄影棚</span></div></article>
+                <article class="workflow-step"><header><span>STEP 04</span><strong>分镜规划</strong><b>待开始</b></header><p>选择主体和场景后，生成可编辑的镜头、动作、台词和运镜计划。</p></article>
+              </section>
+            </div>
+          </section>
+
+          <section class="app-view" id="generateView" data-view-panel="generate" aria-labelledby="generateTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">SIRIHOTDRAMA</span><h1 id="generateTitle">图片反推提示词</h1></div>
+              <span class="live-api-badge" id="viduApiBadge"><i></i> VIDU API</span>
+            </div>
+            <div class="tool-matrix hidden" id="toolMatrix">
+              <button class="tool-tile" data-tool="text-image"><i data-lucide="image-plus"></i><strong>想法成片</strong><span>构思关键帧并生成视频</span></button>
+              <button class="tool-tile" data-tool="image-image"><i data-lucide="images"></i><strong>图生图</strong><span>保持主体生成变体</span></button>
+              <button class="tool-tile active" data-tool="image-video"><i data-lucide="video"></i><strong>图生视频</strong><span>Q4 / Q3.1-ad 实际生成</span></button>
+              <button class="tool-tile" data-tool="reference-video"><i data-lucide="scan-face"></i><strong>参考生视频</strong><span>多参考保持角色一致</span></button>
+              <button class="tool-tile" data-tool="editing"><i data-lucide="film"></i><strong>视频编辑</strong><span>换角色、服装与背景</span></button>
+              <button class="tool-tile" data-tool="audio"><i data-lucide="audio-lines"></i><strong>音频工具</strong><span>音色克隆与音效生成</span></button>
+            </div>
+            <div class="production-rail" id="ideaPipeline" aria-label="想法成片步骤"><span class="done" data-pipeline-step="idea"><b>1</b>输入想法</span><i></i><span class="active" data-pipeline-step="image"><b>2</b>生成首帧</span><i></i><span data-pipeline-step="prompt"><b>3</b>整理动态</span><i></i><span data-pipeline-step="video"><b>4</b>生成视频</span><i></i><span data-pipeline-step="score"><b>5</b>评分沉淀</span></div>
+            <div class="generator-workspace">
+              <section class="generator-controls">
+                <div class="creation-mode" role="tablist" aria-label="起步方式">
+                  <button class="active" type="button" data-creation-mode="image"><i data-lucide="image"></i>图片起步</button>
+                  <button type="button" data-creation-mode="idea"><i data-lucide="lightbulb"></i>灵感成片</button>
+                </div>
+                <div class="idea-starter hidden" id="ideaStarter">
+                  <label><span>一句话想法</span><textarea id="ideaInput" rows="5" maxlength="2000" placeholder="例如：一支透明香水从雨夜橱窗中苏醒，镜头跟随水珠穿过瓶身。"></textarea></label>
+                  <div class="idea-specs">
+                    <label><span>画幅</span><select id="ideaAspectRatio"><option value="9:16" selected>9:16 竖屏</option><option value="16:9">16:9 横屏</option><option value="1:1">1:1 方形</option><option value="4:3">4:3 横图</option><option value="3:4">3:4 竖图</option><option value="21:9">21:9 宽银幕</option></select></label>
+                    <label><span>清晰度</span><select id="ideaResolution"><option value="1K" selected>1K</option><option value="2K">2K</option><option value="4K">4K</option></select></label>
+                    <label><span>质量</span><select id="ideaQuality"><option value="auto" selected>自动</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+                  </div>
+                  <button class="idea-generate-button" id="generateIdeaKeyframeButton" type="button"><i data-lucide="sparkles"></i><span>构思并生成关键帧</span></button>
+                  <button class="secondary-button" id="resumeIdeaTaskButton" type="button" hidden>续接上次生图任务</button>
+                  <div class="idea-task-status" id="ideaTaskStatus" aria-live="polite"><i data-lucide="circle-dashed"></i><div><strong>等待想法</strong><span>VIDUIMAGE-2 · 生成将消耗积分</span></div></div>
+                </div>
+                <label><span>参考图片 / 视频首帧</span><div class="mini-source"><img id="generatorSourcePreview" alt="当前视频首帧" hidden /><div><strong id="generatorSourceName">尚未选择图片</strong><small id="generatorSourceMeta"></small></div><button id="uploadGenerationImageButton" type="button" title="上传首帧"><i data-lucide="upload"></i></button><input id="generationImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /></div></label>
+                <div class="image-input-actions"><button class="secondary-button" id="generationLinkButton" type="button"><i data-lucide="link"></i>图片链接</button><a class="secondary-button" href="#gallery"><i data-lucide="images"></i>从图片库选择</a><button class="secondary-button" id="saveGenerationImageButton" type="button"><i data-lucide="bookmark-plus"></i>存入图片库</button></div>
+                <label><span>创意方向（可选）</span><textarea id="imageDirection" rows="2" maxlength="2000" placeholder="例如：保持人物与产品，设计克制的镜头运动"></textarea></label>
+                <label><span>广告风格</span><select id="generationStyle"><option value="auto">自动匹配</option><option value="apple">Apple 极简科技</option><option value="miumiu">Miu Miu 复古少女</option><option value="cinematic">电影叙事</option></select></label>
+                <button class="primary-button" id="reverseImagePromptButton" type="button"><i data-lucide="scan-search"></i>根据图片生成提示词</button>
+                <p id="reversePromptStatus" class="gallery-status" role="status"></p>
+                <label><span>视频动作提示词</span><textarea id="generatorPrompt" rows="7" maxlength="5000" placeholder="生成后可在这里编辑提示词"></textarea></label>
+                <button class="secondary-button" id="copyGeneratorPrompt" type="button"><i data-lucide="copy"></i>复制提示词</button>
+                <fieldset class="model-picker"><legend>对比模型</legend><label><input id="useQ4" type="checkbox" checked /><span><b>Vidu Q4</b><small>线上 5–16 秒 · 可音画同出</small></span></label><label><input id="useQ31" type="checkbox" checked /><span><b>Q3.1-ad</b><small>4–15 秒 · 广告模型</small></span></label></fieldset>
+                <div class="control-row"><label><span>时长</span><select id="videoDuration"><option value="5" selected>5 秒</option><option value="8">8 秒</option><option value="12">12 秒</option><option value="15">15 秒</option></select></label><label><span>分辨率</span><select id="videoResolution"><option value="540p">540p</option><option value="720p" selected>720p</option><option value="1080p">1080p</option><option value="2K">2K</option></select></label></div>
+                <div class="switch-row"><label><input id="videoAudio" type="checkbox" /><span>Q4 音画同出</span></label><label><input id="videoWatermark" type="checkbox" /><span>固定水印</span></label></div>
+                <p class="cost-note"><i data-lucide="circle-dollar-sign"></i>生图与视频均会消耗 Vidu 积分；首次验证建议 1K 关键帧与 5 秒 / 720p 视频。</p>
+                <button class="primary-button wide" id="generateVideoButton" type="button"><i data-lucide="git-compare-arrows"></i>生成双模型对比</button>
+              </section>
+              <section class="generation-stage">
+                <header class="stage-heading"><div><span>01 · KEYFRAMES</span><strong>关键帧候选</strong></div><small id="keyframeSummary">选择后作为视频任务首帧</small></header>
+                <div class="generator-results" id="generatorResults"></div>
+                <header class="stage-heading video-stage-heading"><div><span>02 · MODEL RUNS</span><strong>视频生成对比</strong></div><small id="videoTaskSummary">尚未提交任务</small></header>
+                <div class="video-task-grid" id="videoTaskGrid"><div class="video-empty"><i data-lucide="video"></i><strong>等待首帧与提示词</strong><span>选择上方候选，然后提交一个或两个模型。</span></div></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="app-view" id="filmView" data-view-panel="film" aria-labelledby="filmTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">VLM FILM BREAKDOWN</span><h1 id="filmTitle">广告拉片</h1><p>FFmpeg 识别场景并抽取时间帧，GPT-5.6 VLM 还原广告结构、镜头语言与复刻提示词。</p></div>
+              <span class="analysis-engine"><i data-lucide="scan-eye"></i> FFmpeg + GPT-5.6</span>
+            </div>
+            <div class="film-workspace">
+              <aside class="film-source-panel">
+                <div class="panel-caption"><span>SOURCE</span><strong>分析素材</strong></div>
+                <button class="film-dropzone" id="filmUploadZone" type="button"><i data-lucide="file-video"></i><strong>选择本地视频</strong><span>MP4 / MOV / WebM / MKV · 最大 250MB · 5 分钟内</span></button>
+                <input id="filmFileInput" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" hidden />
+                <div class="source-divider"><span>或使用公开直链</span></div>
+                <div class="film-url-row"><input id="filmUrlInput" type="url" placeholder="https://.../ad.mp4" /><button id="loadFilmUrlButton" type="button" title="使用视频链接"><i data-lucide="arrow-right"></i></button></div>
+                <div class="film-preview-wrap hidden" id="filmPreviewWrap"><video id="filmPreview" controls preload="metadata"></video><div><strong id="filmSourceName">未选择</strong><span id="filmSourceMeta">等待读取元数据</span></div></div>
+                <label class="film-focus"><span>分析重点</span><textarea id="filmFocus" rows="5" maxlength="1500">完整广告拉片，重点关注前三秒 Hook、产品露出、镜头与剪辑、声音节奏、CTA，以及可直接复刻的生图和生视频提示词。</textarea></label>
+                <button class="primary-button wide" id="analyzeFilmButton" type="button"><i data-lucide="scan-search"></i>开始 VLM 拉片</button>
+                <div class="analysis-progress hidden" id="analysisProgress"><div><i></i><span id="analysisProgressLabel">正在上传视频</span></div><p>抽帧与 VLM 理解通常需要 1–4 分钟，请保持页面打开。</p></div>
+              </aside>
+              <section class="film-analysis-panel" id="filmAnalysisResult" aria-live="polite">
+                <div class="film-empty"><i data-lucide="panels-top-left"></i><strong>拉片报告会出现在这里</strong><span>镜头时间线、广告结构、声音节奏和复刻提示词将统一输出。</span></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="app-view" id="videoLibraryView" data-view-panel="videos" aria-labelledby="videoLibraryTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">VIDEO ARCHIVE</span><h1 id="videoLibraryTitle">成片库</h1><p>已完成的视频自动归档，可按模型检索、回看与下载。</p></div>
+              <div class="heading-actions"><button class="primary-button" id="openGeneratorFromArchive" type="button"><i data-lucide="wand-sparkles"></i>生成新视频</button></div>
+            </div>
+            <div class="video-library-stats">
+              <div><span>全部成片</span><strong id="videoArchiveCount">0</strong><small>自动归档</small></div>
+              <div><span>累计消耗</span><strong id="videoArchiveCredits">0</strong><small>积分</small></div>
+              <div><span>平均 MOS</span><strong id="videoArchiveRated">--</strong><small>已评分成片</small></div>
+              <div><span>最近生成</span><strong id="videoArchiveLatest">--</strong><small>本地记录时间</small></div>
+            </div>
+            <div class="video-library-toolbar">
+              <div class="filter-tabs" id="videoArchiveFilters" aria-label="成片模型筛选"><button class="active" data-video-filter="all" type="button">全部</button><button data-video-filter="viduq4" type="button">Vidu Q4</button><button data-video-filter="viduq3.1-ad" type="button">Q3.1-ad</button></div>
+              <label class="inline-search"><i data-lucide="search"></i><input id="videoArchiveSearch" type="search" placeholder="搜索标题、模型或提示词" /></label>
+            </div>
+            <div class="video-library-grid" id="videoArchiveGrid"></div>
+          </section>
+
+          <section class="app-view" id="compareView" data-view-panel="compare" aria-labelledby="compareTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">MODEL BENCH</span><h1 id="compareTitle">多模型对比</h1><p>同一参考图和提示词并行评测，记录 MOS、理由并沉淀到 Benchmark。</p></div>
+              <div class="heading-actions"><button class="secondary-button" id="syncPlaybackButton" type="button"><i data-lucide="play"></i>同步预览</button><button class="primary-button" id="saveBenchmarkButton" type="button"><i data-lucide="database"></i>存入 Benchmark</button></div>
+            </div>
+            <div class="compare-brief"><img src="/assets/red-device.webp" alt="对比参考图" /><div><span>统一输入</span><strong id="comparePromptTitle">酒红光带 · 时尚产品短片</strong><p>人物轻抬下巴，窄光扫过设备与首饰，镜头由半身缓慢推近。</p></div><button type="button" title="编辑统一输入"><i data-lucide="pencil"></i></button></div>
+            <div class="comparison-grid" id="comparisonGrid"></div>
+          </section>
+
+          <section class="app-view" id="libraryView" data-view-panel="library" aria-labelledby="libraryTitle">
+            <div class="view-heading compact-heading">
+              <div><span class="section-kicker">TEAM ASSETS</span><h1 id="libraryTitle">Case 与 Benchmark</h1><p>沉淀可复用的 prompt、关键帧、分镜、成片与评测结果。</p></div>
+              <div class="heading-actions"><button class="secondary-button" type="button"><i data-lucide="upload"></i>批量导入</button><button class="primary-button" id="createCollectionButton" type="button"><i data-lucide="folder-plus"></i>新建合集</button></div>
+            </div>
+            <div class="library-stats"><div><span>团队资产</span><strong id="assetCount">48</strong><small>本周 +12</small></div><div><span>Benchmark</span><strong>16</strong><small>已完成评测</small></div><div><span>Case 生产包</span><strong id="caseCount">7</strong><small>3 个进行中</small></div><div><span>可复用 Prompt</span><strong>92</strong><small>覆盖 18 类场景</small></div></div>
+            <div class="library-toolbar"><div class="filter-tabs" id="libraryFilters"><button class="active">全部资产</button><button>Case</button><button>关键帧</button><button>视频</button><button>Prompt</button></div><label class="inline-search"><i data-lucide="search"></i><input id="librarySearch" type="search" placeholder="搜索标签、场景或描述" /></label></div>
+            <div class="asset-table" id="assetTable"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <dialog class="video-detail-dialog" id="videoDetailDialog" aria-label="成片详情">
+      <div id="videoDetailContent"></div>
+    </dialog>
+
+    <dialog class="link-dialog" id="linkDialog">
+      <form method="dialog" id="linkForm">
+        <div class="dialog-heading"><div><span class="section-kicker">REMOTE SOURCE</span><h2>载入图片链接</h2></div><button value="cancel" type="submit" title="关闭"><i data-lucide="x"></i></button></div>
+        <p>支持公开的 PNG、JPG、WebP 或 GIF。图片由本地服务安全读取，不会暴露 API Key。</p>
+        <label><span>图片 URL</span><input id="linkInput" type="url" required placeholder="https://.../image.png" /></label>
+        <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">取消</button><button class="primary-button" id="loadLinkButton" value="default" type="submit">载入图片</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="help-dialog" id="helpDialog">
+      <form method="dialog">
+        <div class="dialog-heading"><div><span class="section-kicker">PRODUCT SCOPE</span><h2>体验台能力说明</h2></div><button value="cancel" type="submit" title="关闭"><i data-lucide="x"></i></button></div>
+        <div class="scope-list"><div><i data-lucide="check-circle-2"></i><span><strong>真实能力</strong>GPT-5.6 创意拆解、图片理解、分镜与广告 VLM 拉片。</span></div><div><i data-lucide="check-circle-2"></i><span><strong>真实能力</strong>Vidu Q4 与 Q3.1-ad 图生视频任务、状态查询、播放与下载。</span></div><div><i data-lucide="flask-conical"></i><span><strong>体验素材</strong>关键帧候选为内置示例；选择候选后的图生视频调用为真实任务并消耗积分。</span></div></div>
+        <button class="primary-button wide" value="cancel" type="submit">知道了</button>
+      </form>
+    </dialog>
+
+    <div class="toast hidden" id="toast" role="status"></div>
+    <script src="/vendor/lucide.min.js"></script>
+    <script src="/creative-assets.js" defer></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

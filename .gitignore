@@ -1,0 +1,14 @@
+node_modules/
+data/
+reports/
+validation/
+.venv*/
+__pycache__/
+*.log
+*.tar.gz
+*.tgz
+*.zip
+.DS_Store
+Thumbs.db
+.env
+.env.*

@@ -1,0 +1,39 @@
+[Unit]
+Description=short-drama-lab workbench
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=shortdrama
+Group=shortdrama
+WorkingDirectory=/opt/short-drama-lab/app
+EnvironmentFile=/etc/short-drama-lab/app.env
+# install.sh 会把下面的占位符替换为实际 node 路径
+ExecStart=__NODE_BIN__ server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=25
+KillMode=mixed
+LimitNOFILE=65536
+UMask=0077
+
+# 发布目录只读，仅数据卷可写
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/short-drama-lab
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# 小内存机器：先回收再拒绝，FFmpeg 峰值由 swap 兜底
+MemoryHigh=1000M
+MemoryMax=1500M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

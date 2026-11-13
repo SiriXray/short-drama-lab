@@ -1,0 +1,54 @@
+limit_req_zone $binary_remote_addr zone=drama_requests:10m rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=drama_conns:10m;
+
+server {
+    listen 80;
+    server_name __PUBLIC_HOST__;
+    return 308 https://__PUBLIC_HOST__$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name __PUBLIC_HOST__;
+    charset utf-8;
+
+    ssl_certificate /etc/short-drama-lab/tls/server.crt;
+    ssl_certificate_key /etc/short-drama-lab/tls/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:DRAMA_TLS:1m;
+    ssl_session_timeout 10m;
+
+    # 公网至少加一层认证；口令文件由 install.sh 生成
+    auth_basic "short-drama-lab";
+    auth_basic_user_file /etc/nginx/short-drama-lab.htpasswd;
+
+    # 单集原片上限 15 分钟 / 500 MB
+    client_max_body_size 600m;
+    client_body_timeout 600s;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    limit_req zone=drama_requests burst=60 nodelay;
+    limit_req_status 429;
+    limit_conn drama_conns 12;
+
+    location / {
+        proxy_pass http://127.0.0.1:4328;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Authorization "";
+
+        proxy_connect_timeout 10s;
+        # 上传流式直传，避免 nginx 落 600 MB 临时文件
+        proxy_request_buffering off;
+        proxy_buffering off;
+        # 视觉模型与视频轮询可能静默数分钟
+        proxy_read_timeout 1800s;
+        proxy_send_timeout 1800s;
+    }
+}
