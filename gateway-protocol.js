@@ -29,7 +29,10 @@ function maxTokens(payload, env = process.env) {
   const limit = Math.max(256, Math.min(32768, Number(env.ATELIER_CHAT_MAX_TOKENS || DEFAULT_MAX_TOKENS)));
   const requested = Number(payload?.max_output_tokens ?? payload?.max_completion_tokens ?? payload?.max_tokens ?? 0);
   if (!Number.isFinite(requested) || requested <= 0) return limit;
-  return Math.max(256, Math.min(Math.round(requested), limit));
+  // Chat providers bill the tokens actually produced, so a longer ceiling only
+  // protects long JSON answers from being cut off (reasoning models included).
+  const floor = Math.min(limit, Math.max(256, Number(env.ATELIER_CHAT_MIN_TOKENS || 12000)));
+  return Math.max(256, Math.min(Math.max(Math.round(requested), floor), limit));
 }
 
 function partImageUrl(part) {

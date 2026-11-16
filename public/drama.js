@@ -149,7 +149,8 @@ function episodeSelector() {
   return `<label class="selection">分集 <select id="episode-filter"><option value="">全部分集</option>${project.episodes.map(e => `<option value="${e.id}" ${episodeFilter === e.id ? "selected" : ""}>第 ${e.number} 集 · ${esc(e.title)}</option>`).join("")}</select></label>`;
 }
 function renderEpisodes() {
-  return `<div class="section-title"><label class="selection"><input class="check" type="checkbox" id="select-all" ${project.episodes.filter(e => e.file).length && project.episodes.filter(e => e.file).every(e => selected.has(e.id)) ? "checked" : ""}>已选 ${selected.size} 集</label><div class="actions"><button class="button" id="import-link" ${isRunning() ? "disabled" : ""}>${icon("link")}链接导入</button><button class="button" id="upload" ${isRunning() ? "disabled" : ""}>${icon("upload")}上传分集</button></div></div>${!project.episodes.length ? empty("暂无分集", "upload") : project.episodes.slice().sort((a, b) => a.number - b.number).map(e => `<article class="episode-row"><input type="checkbox" class="check" data-select="${e.id}" aria-label="选择第${e.number}集" ${selected.has(e.id) ? "checked" : ""} ${!e.file ? "disabled" : ""}><div><h3>第 ${e.number} 集 · ${esc(e.title)}</h3>${badge(statusNames[e.access] || "待导入", e.file ? "success" : "warn")} ${e.metadata ? `<span class="muted">${time(e.metadata.duration)} · ${e.metadata.width}×${e.metadata.height}</span>` : ""}${e.error ? `<p class="error-text">${esc(e.error)}</p>` : ""}</div><div class="actions">${e.file ? `<button class="icon" title="预览原片" data-preview="${e.id}" aria-label="预览原片">${icon("play")}</button>` : e.pageUrl || e.videoUrl ? `<button class="button small" data-fetch="${e.id}" ${isRunning() ? "disabled" : ""}>${icon("download")}读取视频</button>` : ""}<button class="icon" data-replace="${e.id}" title="补充或替换本集视频" aria-label="补充或替换本集视频" ${isRunning() ? "disabled" : ""}>${icon("upload")}</button><button class="icon" data-edit-episode="${e.id}" title="集数与对白" aria-label="集数与对白" ${isRunning() ? "disabled" : ""}>${icon("file-pen-line")}</button><button class="icon" data-delete-episode="${e.id}" title="移除分集" aria-label="移除分集" ${isRunning() ? "disabled" : ""}>${icon("trash-2")}</button></div></article>`).join("")}`;
+  const importing = project.import?.status === "running" ? `<div class="warning">后台导入中：${project.import.done}/${project.import.total} 已保存${project.import.failed?.length ? `，失败 ${project.import.failed.length} 条` : ""}。可关闭页面，导入在服务端继续。</div>` : "";
+  return importing + `<div class="section-title"><label class="selection"><input class="check" type="checkbox" id="select-all" ${project.episodes.filter(e => e.file).length && project.episodes.filter(e => e.file).every(e => selected.has(e.id)) ? "checked" : ""}>已选 ${selected.size} 集</label><div class="actions"><button class="button" id="import-link" ${isRunning() ? "disabled" : ""}>${icon("link")}链接导入</button><button class="button" id="upload" ${isRunning() ? "disabled" : ""}>${icon("upload")}上传分集</button></div></div>${!project.episodes.length ? empty("暂无分集", "upload") : project.episodes.slice().sort((a, b) => a.number - b.number).map(e => `<article class="episode-row"><input type="checkbox" class="check" data-select="${e.id}" aria-label="选择第${e.number}集" ${selected.has(e.id) ? "checked" : ""} ${!e.file ? "disabled" : ""}><div><h3>第 ${e.number} 集 · ${esc(e.title)}</h3>${badge(statusNames[e.access] || "待导入", e.file ? "success" : "warn")} ${e.metadata ? `<span class="muted">${time(e.metadata.duration)} · ${e.metadata.width}×${e.metadata.height}</span>` : ""}${e.error ? `<p class="error-text">${esc(e.error)}</p>` : ""}</div><div class="actions">${e.file ? `<button class="icon" title="预览原片" data-preview="${e.id}" aria-label="预览原片">${icon("play")}</button>` : e.pageUrl || e.videoUrl ? `<button class="button small" data-fetch="${e.id}" ${isRunning() ? "disabled" : ""}>${icon("download")}读取视频</button>` : ""}<button class="icon" data-replace="${e.id}" title="补充或替换本集视频" aria-label="补充或替换本集视频" ${isRunning() ? "disabled" : ""}>${icon("upload")}</button><button class="icon" data-edit-episode="${e.id}" title="集数与对白" aria-label="集数与对白" ${isRunning() ? "disabled" : ""}>${icon("file-pen-line")}</button><button class="icon" data-delete-episode="${e.id}" title="移除分集" aria-label="移除分集" ${isRunning() ? "disabled" : ""}>${icon("trash-2")}</button></div></article>`).join("")}`;
 }
 function renderStoryboard() {
   const episodes = visibleEpisodes();
@@ -275,17 +276,32 @@ document.addEventListener("click", event => {
       const urls = String(v.get("url") || "").split(/[\r\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 100);
       if (!urls.length) throw new Error("请填写至少一个链接。");
       const prefix = String(v.get("title") || "").trim() || "链接分集";
-      const direct = v.has("direct"), allowPreview = v.has("allowPreview"), failures = [];
-      for (const [index, url] of urls.entries()) {
-        notify(`正在导入第 ${index + 1}/${urls.length} 个链接…`);
-        try {
-          const p = await api(`/projects/${project.id}/import-url`, { url, title: urls.length > 1 ? `${prefix} ${index + 1}` : prefix, direct, allowPreview });
-          if (project?.id === p.id) setProject(p);
-        } catch (error) { failures.push(`第 ${index + 1} 个：${error.message}`); }
+      const direct = v.has("direct"), allowPreview = v.has("allowPreview");
+      if (urls.length === 1) {
+        const p = await api(`/projects/${project.id}/import-url`, { url: urls[0], title: prefix, direct, allowPreview });
+        if (project?.id === p.id) { selected.add(p.episodes.at(-1).id); setProject(p); }
+        notify("已导入 1 个链接");
+        renderProject();
+        return;
       }
-      if (failures.length) throw new Error(`已导入 ${urls.length - failures.length}/${urls.length} 个链接；失败：${failures.join("；")}`);
-      notify(`已导入 ${urls.length} 个链接`);
-      renderProject();
+      const started = await api(`/projects/${project.id}/import-urls`, { urls, title: prefix, direct, allowPreview });
+      if (project?.id === started.id) setProject(started);
+      closeModal();
+      (async () => {
+        for (let i = 0; i < 960; i++) {
+          await new Promise(resolve => setTimeout(resolve, 2500));
+          try {
+            const next = await api(`/projects/${project.id}`);
+            if (project?.id !== next.id) return;
+            setProject(next);
+            const state = next.import;
+            if (state?.status === "running") { notify(`后台导入中：${state.done}/${state.total} 已保存`); continue; }
+            const failed = state?.failed || [];
+            notify(`导入完成：成功 ${state?.done ?? 0}/${state?.total ?? urls.length}${failed.length ? `，失败 ${failed.length} 条（${failed[0].error}）` : ""}`, failed.length > 0);
+            return;
+          } catch { return; }
+        }
+      })();
     }, "导入视频");
   if (b.dataset.preview) { const ep = project.episodes.find(e => e.id === b.dataset.preview); return modal(`第 ${ep.number} 集 · 原片`, `<video controls autoplay playsinline style="width:100%;max-height:60vh" src="${fileUrl(ep.file)}"></video>`, async () => {}, "关闭"); }
   if (b.dataset.editEpisode) {

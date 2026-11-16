@@ -128,6 +128,7 @@ function createDramaRouter(deps, options = {}) {
   deps = settings.runtime;
   const engine = createEngine({ ...deps, concurrency: options.concurrency || deps.concurrency, importEpisode }, store);
   const locks = new Set();
+  const importJobs = new Map();
   let catalog = null;
   const catalogFile = path.join(root, "catalog.json");
   try { catalog = JSON.parse(fs.readFileSync(catalogFile, "utf8")); } catch { /* no imported source yet */ }
@@ -175,6 +176,43 @@ function createDramaRouter(deps, options = {}) {
       fs.rmSync(destination, { force: true });
       throw error;
     }
+  }
+  async function importEpisodeUrl(p, ep, sourceUrl, options = {}) {
+    let videoUrl = sourceUrl;
+    if (!/\.(mp4|mov|webm|m3u8)(?:\?|$)/i.test(sourceUrl) && options.direct !== true) {
+      const source = await (deps.remoteContent || media.remoteContent)(sourceUrl, deps.isPrivateAddress);
+      const items = media.parseCatalog(source.buffer.toString("utf8"), source.contentType, source.url);
+      videoUrl = items.flatMap(item => item.episodes).find(e => e.videoUrl)?.videoUrl;
+      if (!videoUrl) throw media.fail(previewOnlyMessage(sourceUrl), 403);
+    }
+    await downloadEpisode(p, ep, videoUrl, { allowPreview: options.allowPreview === true });
+    ep.sourceUrl = sourceUrl;
+    if (!p.episodes.some(e => e.id === ep.id)) p.episodes.push(ep);
+    return ep;
+  }
+  // Server-side batch import: keeps going when the browser is closed and reports
+  // per-URL failures instead of aborting the whole list.
+  function startImportJob(p, urls, options) {
+    const state = { status: "running", total: urls.length, done: 0, failed: [], startedAt: new Date().toISOString(), current: "" };
+    importJobs.set(p.id, state);
+    (async () => {
+      for (let index = 0; index < urls.length; index += 1) {
+        if (state.status !== "running") break;
+        const sourceUrl = urls[index];
+        state.current = sourceUrl;
+        const ep = { id: uuid(), number: Math.max(0, ...p.episodes.map(e => e.number)) + 1, title: `${options.title || "链接分集"} ${index + 1}`, shots: [], transcript: "", access: "pending" };
+        try {
+          await importEpisodeUrl(p, ep, sourceUrl, options);
+          state.done += 1;
+        } catch (error) {
+          state.failed.push({ url: sourceUrl, error: text(error.message, 300) });
+        }
+        try { store.save(p); } catch (error) { state.status = "failed"; state.error = text(error.message, 300); break; }
+      }
+      if (state.status === "running") state.status = "completed";
+      state.current = "";
+    })().catch(error => { state.status = "failed"; state.error = text(error.message, 300); });
+    return state;
   }
   async function importEpisode(p, ep) {
     try {
@@ -284,7 +322,7 @@ function createDramaRouter(deps, options = {}) {
         if (locks.has(p.id)) throw media.fail("项目正在保存或导入，请稍后再试。", 409);
         locks.add(p.id); locked = p.id;
       }
-      if (!action && req.method === "GET") { send(res, 200, p); return true; }
+      if (!action && req.method === "GET") { send(res, 200, { ...p, import: importJobs.get(p.id) || null }); return true; }
       if (action === "trials" && req.method === "POST") {
         const body = await readBody(req);
         if (body.confirmPaid !== true || !validId(body.id)) throw media.fail("请确认计费并提供有效的请求 ID。");
@@ -510,19 +548,20 @@ function createDramaRouter(deps, options = {}) {
         ep ||= { id: uuid(), number: Math.max(0, ...p.episodes.map(e => e.number)) + 1, title: text(body.title, 160) || "链接分集", shots: [], transcript: "" };
         const sourceUrl = text(body.url || ep.videoUrl || ep.pageUrl, 2048);
         if (!sourceUrl) throw media.fail("该集未公开视频，请补充有权限的视频文件或直链。", 403);
-        let videoUrl = sourceUrl;
         try {
-          if (!/\.(mp4|mov|webm|m3u8)(?:\?|$)/i.test(sourceUrl) && body.direct !== true) {
-            const source = await (deps.remoteContent || media.remoteContent)(sourceUrl, deps.isPrivateAddress);
-            const items = media.parseCatalog(source.buffer.toString("utf8"), source.contentType, source.url);
-            videoUrl = items.flatMap(item => item.episodes).find(e => e.videoUrl)?.videoUrl;
-            if (!videoUrl) throw media.fail(previewOnlyMessage(sourceUrl), 403);
-          }
-          await downloadEpisode(p, ep, videoUrl, { allowPreview: body.allowPreview === true });
-          ep.sourceUrl = sourceUrl;
-          if (!p.episodes.some(e => e.id === ep.id)) p.episodes.push(ep);
+          await importEpisodeUrl(p, ep, sourceUrl, { direct: body.direct === true, allowPreview: body.allowPreview === true });
           store.save(p); send(res, 201, p); return true;
         } catch (error) { ep.error = text(error.message); ep.access = "permission-required"; store.save(p); throw error; }
+      }
+      if (action === "import-urls" && req.method === "POST") {
+        idle(p); const body = await readBody(req);
+        if (p.production) throw media.fail("请在原片项目导入片源，再新建制作副本。");
+        const urls = [...new Set([].concat(body.urls || []).map(value => text(value, 2048)).filter(Boolean))].slice(0, 100);
+        if (!urls.length) throw media.fail("请至少提供一个视频或播放页链接。");
+        if (p.episodes.length + urls.length > 100) throw media.fail(`每个项目最多 100 集，当前已有 ${p.episodes.length} 集，本次 ${urls.length} 条链接。`);
+        if (importJobs.get(p.id)?.status === "running") throw media.fail("该项目的批量导入正在进行，请等待完成。", 409);
+        const state = startImportJob(p, urls, { direct: body.direct === true, allowPreview: body.allowPreview === true, title: text(body.title, 160) });
+        send(res, 202, { ...p, import: state }); return true;
       }
       const epMatch = /^episodes\/([a-f0-9-]{36})$/.exec(action);
       if (epMatch && ["PATCH", "DELETE"].includes(req.method)) {

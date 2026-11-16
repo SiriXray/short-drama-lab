@@ -159,3 +159,45 @@ test("downloadHls reads the playlist, the segments and then remuxes locally", as
   ]);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("batch import runs in the background and reports per-link failures", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "drama-batch-"));
+  const { router } = fixture(root, {}, {
+    remoteContent: async (_url, _check, options) => {
+      if (String(_url).includes("broken")) throw Object.assign(new Error("来源读取失败（HTTP 404）。"), { statusCode: 502 });
+      fs.mkdirSync(path.dirname(options.destination), { recursive: true });
+      fs.writeFileSync(options.destination, "mock-video");
+    },
+  });
+  const server = http.createServer((req, res) => router.route(req, res));
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const created = await request(port, "POST", "/api/drama/projects", { uploadIntent: "analyze", title: "批量导入" });
+  assert.equal(created.status, 201);
+  const id = created.body.id;
+  const started = await request(port, "POST", `/api/drama/projects/${id}/import-urls`, {
+    urls: ["https://cdn.example.test/ep01.mp4", "https://cdn.example.test/broken.mp4", "https://cdn.example.test/ep03.mp4"],
+    title: "第",
+  });
+  assert.equal(started.status, 202);
+  assert.equal(started.body.import.status, "running");
+  assert.equal(started.body.import.total, 3);
+
+  let project;
+  for (let i = 0; i < 100; i += 1) {
+    project = await request(port, "GET", `/api/drama/projects/${id}`);
+    if (project.body.import?.status !== "running") break;
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  assert.equal(project.body.import.status, "completed");
+  assert.equal(project.body.import.done, 2);
+  assert.equal(project.body.import.failed.length, 1);
+  assert.match(project.body.import.failed[0].url, /broken/);
+  assert.equal(project.body.episodes.length, 2);
+  assert.ok(project.body.episodes.every(ep => ep.access === "ready" && ep.file));
+});
