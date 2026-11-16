@@ -59,6 +59,7 @@ export ATELIER_CHAT_MAX_TOKENS=16384
 | `DRAMA_LLM_CONCURRENCY` | `2` | LLM 并发（1–8） |
 | `DRAMA_IMAGE_CONCURRENCY` | `2` | 图片并发（1–8） |
 | `DRAMA_VIDEO_CONCURRENCY` | `3` | 视频并发（1–8） |
+| `DRAMA_HLS_CONCURRENCY` | `6` | HLS 分片并行下载数（1–8） |
 | `DRAMA_ALLOWED_HOSTS` | — | 反向代理部署时放行的 Host（逗号分隔） |
 | `DRAMA_PUBLIC_ORIGINS` | — | 放行的 HTTPS Origin（逗号分隔） |
 
@@ -69,6 +70,17 @@ export ATELIER_CHAT_MAX_TOKENS=16384
 短剧接口在 `/api/drama` 下：`catalog`、`projects`、`projects/:id/episodes`、`run`、`stop`、`recover`、`export`、`health`。
 原广告工作台接口保留在 `/api`（`/api/agent/jobs`、`/api/image/create`、`/api/video/analyze` 等）。
 
+## 完整集导入（mp4 / HLS）
+
+平台按“整集”处理，而不是只拉预告片：
+
+- **本地上传**：每集 ≤15 分钟、≤500MB。
+- **直链导入**：mp4 / mov / webm，或 HLS（`.m3u8`；支持 master playlist 选码率、AES-128 加密分片）。
+- **批量导入**：网页“链接导入”支持每行一个链接，最多 100 条，失败项会逐条回报。
+- **预览片守卫**：下载后若时长 <20 秒，默认拒绝并说明“这是预览片”，避免把 10 秒预告当成完整集去拉片；确需导入时勾选“允许导入短于 20 秒的预览片”。
+- **安全**：HLS 的播放列表、分片与密钥都逐段经过同一套内网地址校验，不会因为交给 ffmpeg 而绕过 SSRF 防护；分片并行数用 `DRAMA_HLS_CONCURRENCY`（默认 6）调整。
+
+> 红果（hongguoduanju.com）网页端每集只公开约 10 秒、640×360 的预告（`/video/public/<id>/360p.mp4`，实测 10.07 秒）；完整集走 App 内的受保护播放（`/api/video/protected/` + DRM 令牌），不是公开可下载内容。平台不绕过该保护，拉完整集请使用授权本地文件、直链或 HLS。
 ## 部署
 
 Linux 单机（systemd + nginx + 自签名证书或正式证书）的做法见 [DEPLOY-ECS.md](DEPLOY-ECS.md)，可复用文件在 [`deploy/ecs/`](deploy/ecs/)。

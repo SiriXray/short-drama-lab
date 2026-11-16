@@ -1,6 +1,8 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const http = require("node:http");
 const https = require("node:https");
@@ -10,6 +12,9 @@ const { promisify } = require("node:util");
 const { once } = require("node:events");
 const cheerio = require("cheerio");
 const exec = promisify(execFile);
+// Keep-alive agents: HLS imports issue hundreds of segment requests, and a fresh
+// TLS handshake per segment dominates the download time.
+const keepAlive = { http: new http.Agent({ keepAlive: true, maxSockets: 8 }), https: new https.Agent({ keepAlive: true, maxSockets: 8 }) };
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ffprobe = process.env.FFPROBE_PATH || "ffprobe";
 const fail = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
@@ -29,6 +34,7 @@ async function openRemote(raw, isPrivateAddress, options = {}, depth = 0) {
   if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address) || /^::ffff:/i.test(address))) throw fail("不能采集本机或内网地址。");
   const response = await new Promise((resolve, reject) => {
     const req = (url.protocol === "https:" ? https : http).get(url, {
+      agent: url.protocol === "https:" ? keepAlive.https : keepAlive.http,
       headers: { "User-Agent": "Atelier-Drama/1.0", Accept: "*/*", ...(options.headers || {}) },
       lookup: (_host, opts, callback) => opts.all ? callback(null, [addresses[0]]) : callback(null, addresses[0].address, addresses[0].family),
     }, resolve);
@@ -173,6 +179,113 @@ function sortCatalog(items, metric = "playCount") {
   return [...items].sort((a, b) => (b[metric] ?? -1) - (a[metric] ?? -1) || a.sourceRank - b.sourceRank);
 }
 
+// Public HLS sources are downloaded segment by segment so every request still
+// goes through the same private-address guard as the page importer.
+function isHlsUrl(value) {
+  try {
+    const url = new URL(value);
+    return /\.m3u8?$/i.test(url.pathname) || /(?:^|[?&])format=m3u8(?:&|$)/i.test(url.search);
+  } catch { return false; }
+}
+
+function playlistAttributes(text) {
+  const out = {};
+  const pattern = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/gi;
+  let match;
+  while ((match = pattern.exec(String(text)))) out[match[1].toUpperCase()] = match[2].replace(/^"|"$/g, "");
+  return out;
+}
+
+function parsePlaylist(text, baseUrl) {
+  const lines = String(text).split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length || !lines[0].startsWith("#EXTM3U")) throw fail("不是有效的 HLS 播放列表。", 422);
+  const variants = [], segments = [];
+  let variant = null, key = null;
+  for (const line of lines) {
+    if (line.startsWith("#EXT-X-STREAM-INF:")) { variant = playlistAttributes(line.slice("#EXT-X-STREAM-INF:".length)); continue; }
+    if (line.startsWith("#EXT-X-KEY:")) {
+      const attrs = playlistAttributes(line.slice("#EXT-X-KEY:".length));
+      key = attrs.METHOD && attrs.METHOD.toUpperCase() !== "NONE" ? attrs : null;
+      continue;
+    }
+    if (line.startsWith("#EXT-X-MAP:")) throw fail("该 HLS 使用 fMP4 分片，当前只支持 TS 分片。", 422);
+    if (line.startsWith("#")) continue;
+    const uri = new URL(line, baseUrl).href;
+    if (variant) { variants.push({ uri, bandwidth: Number(variant.BANDWIDTH || 0) }); variant = null; continue; }
+    segments.push({ uri, key });
+  }
+  return { variants, segments };
+}
+
+async function hlsSegmentData(segment, index, state) {
+  const fetched = await state.remote(segment.uri, state.isPrivateAddress, { limit: 64 * 1024 * 1024 });
+  if (!segment.key) return fetched.buffer;
+  const method = String(segment.key.METHOD || "").toUpperCase();
+  if (method !== "AES-128") throw fail(`HLS 使用 ${method} 加密，暂不支持。`, 422);
+  if (!segment.key.URI) throw fail("HLS 密钥地址缺失。", 422);
+  const keyUri = new URL(segment.key.URI, segment.uri).href;
+  if (!state.keys.has(keyUri)) state.keys.set(keyUri, (await state.remote(keyUri, state.isPrivateAddress, { limit: 64 * 1024 })).buffer);
+  const key = state.keys.get(keyUri);
+  if (key.length !== 16) throw fail("HLS 密钥长度无效。", 422);
+  const iv = segment.key.IV
+    ? Buffer.from(segment.key.IV.replace(/^0x/i, "").padStart(32, "0").slice(0, 32), "hex")
+    : (() => { const value = Buffer.alloc(16); value.writeUInt32BE(index >>> 0, 12); return value; })();
+  const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+  return Buffer.concat([decipher.update(fetched.buffer), decipher.final()]);
+}
+
+async function downloadHls(url, isPrivateAddress, options = {}) {
+  const remote = options.remote || remoteContent;
+  const limit = options.limit || 500 * 1024 * 1024;
+  const state = { isPrivateAddress, remote, keys: new Map() };
+  let current = url, playlist = null;
+  for (let depth = 0; depth < 4; depth += 1) {
+    const source = await remote(current, isPrivateAddress, { limit: 4 * 1024 * 1024 });
+    playlist = parsePlaylist(source.buffer.toString("utf8"), source.url || current);
+    if (playlist.segments.length) break;
+    if (!playlist.variants.length) throw fail("HLS 播放列表没有可用分片。", 422);
+    playlist.variants.sort((a, b) => b.bandwidth - a.bandwidth);
+    current = playlist.variants[0].uri;
+    playlist = null;
+  }
+  if (!playlist?.segments.length) throw fail("HLS 播放列表没有可用分片。", 422);
+  if (playlist.segments.length > 4000) throw fail("HLS 分片数量超过当前限制。", 413);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "drama-hls-"));
+  const joined = path.join(tempDir, "media.ts");
+  const handle = fs.openSync(joined, "w");
+  // Fetch a few segments at a time but always append them in playlist order.
+  const parallel = Math.max(1, Math.min(8, Number(process.env.DRAMA_HLS_CONCURRENCY || 6)));
+  let bytes = 0;
+  try {
+    for (let start = 0; start < playlist.segments.length; start += parallel) {
+      const batch = playlist.segments.slice(start, start + parallel);
+      const chunks = await Promise.all(batch.map((segment, offset) => hlsSegmentData(segment, start + offset, state)));
+      for (const data of chunks) {
+        bytes += data.length;
+        if (bytes > limit) throw fail("视频超过 500MB。", 413);
+        fs.writeSync(handle, data);
+      }
+      if (typeof options.onProgress === "function") options.onProgress({ index: Math.min(start + batch.length, playlist.segments.length), total: playlist.segments.length, bytes });
+    }
+  } finally {
+    fs.closeSync(handle);
+  }
+
+  const partial = `${options.destination}.part.mp4`;
+  try {
+    await exec(ffmpeg, ["-y", "-hide_banner", "-loglevel", "error", "-f", "mpegts", "-i", joined, "-c", "copy", "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart", "-f", "mp4", partial], { timeout: 900000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 });
+    if (!fs.existsSync(partial) || !fs.statSync(partial).size) throw fail("HLS 合成为空文件。", 422);
+    fs.renameSync(partial, options.destination);
+    return { bytes, segments: playlist.segments.length, size: fs.statSync(options.destination).size };
+  } catch (error) {
+    fs.rmSync(partial, { force: true });
+    throw error;
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function probe(file) {
   const { stdout } = await exec(ffprobe, ["-v", "error", "-protocol_whitelist", "file,pipe", "-show_format", "-show_streams", "-of", "json", file], { timeout: 30000, windowsHide: true, maxBuffer: 2e6 });
   const info = JSON.parse(stdout);
@@ -289,4 +402,4 @@ async function assemble(clips, output, aspectRatio = "9:16", resolution = "720p"
   return probe(output);
 }
 
-module.exports = { fail, publicUrl, remoteContent, parseCatalog, sortCatalog, numericMetric, probe, shotWindows, extractShots, assemble, conditionImage, sampleFrames, browserPreview, endingFrame };
+module.exports = { fail, publicUrl, remoteContent, isHlsUrl, parsePlaylist, downloadHls, parseCatalog, sortCatalog, numericMetric, probe, shotWindows, extractShots, assemble, conditionImage, sampleFrames, browserPreview, endingFrame };

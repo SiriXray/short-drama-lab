@@ -265,7 +265,28 @@ document.addEventListener("click", event => {
   if (b.id === "approve-continuity") return modal("确认相邻样片", `<label class="checkbox-label"><input type="checkbox" name="confirmed" required>已检查每集前两段：句尾完整、画外音正确、人物站位与动作衔接自然</label>`, async v => { setProject(await api(`/projects/${project.id}/continuity/approve`, { confirmed: v.has("confirmed") })); await run("all"); }, "确认并继续整集");
   if (b.id === "upload" || b.dataset.replace) { replaceEpisode = b.dataset.replace || null; $("#upload-input").multiple = !replaceEpisode; $("#upload-input").click(); return; }
   if (b.dataset.fetch) return void busy(b, async () => { notify("正在读取并保存分集视频…"); const p = await api(`/projects/${project.id}/import-url`, { episodeId: b.dataset.fetch }); if (project?.id === p.id) selected.add(b.dataset.fetch); setProject(p); notify("分集视频已保存"); });
-  if (b.id === "import-link") return modal("导入分集链接", field("视频或播放页链接", "url", "", "input", "type=url required") + field("分集名称", "title", "链接分集") + `<label class="checkbox-label"><input type="checkbox" name="direct">这是视频直链（无文件扩展名）</label>`, async v => { setProject(await api(`/projects/${project.id}/import-url`, { url: v.get("url"), title: v.get("title"), direct: v.has("direct") })); selected.add(project.episodes.at(-1).id); renderProject(); }, "导入视频");
+  if (b.id === "import-link") return modal("导入分集链接",
+    field("视频或播放页链接（每行一个）", "url", "", "textarea", "rows=4 required placeholder=\"https://cdn.example.com/ep01.mp4 或 https://cdn.example.com/ep01/index.m3u8\"") +
+    field("分集名称前缀", "title", "链接分集") +
+    `<label class="checkbox-label"><input type="checkbox" name="direct">这是视频直链（无文件扩展名）</label>` +
+    `<label class="checkbox-label"><input type="checkbox" name="allowPreview">允许导入短于 20 秒的预览片</label>` +
+    warning("支持 mp4 / mov / webm 直链与 HLS（m3u8）整集导入，每集 ≤15 分钟、≤500MB。红果网页端只公开约 10 秒预告，完整集在 App 内受保护；这类预览默认会被拒绝。"),
+    async v => {
+      const urls = String(v.get("url") || "").split(/[\r\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 100);
+      if (!urls.length) throw new Error("请填写至少一个链接。");
+      const prefix = String(v.get("title") || "").trim() || "链接分集";
+      const direct = v.has("direct"), allowPreview = v.has("allowPreview"), failures = [];
+      for (const [index, url] of urls.entries()) {
+        notify(`正在导入第 ${index + 1}/${urls.length} 个链接…`);
+        try {
+          const p = await api(`/projects/${project.id}/import-url`, { url, title: urls.length > 1 ? `${prefix} ${index + 1}` : prefix, direct, allowPreview });
+          if (project?.id === p.id) setProject(p);
+        } catch (error) { failures.push(`第 ${index + 1} 个：${error.message}`); }
+      }
+      if (failures.length) throw new Error(`已导入 ${urls.length - failures.length}/${urls.length} 个链接；失败：${failures.join("；")}`);
+      notify(`已导入 ${urls.length} 个链接`);
+      renderProject();
+    }, "导入视频");
   if (b.dataset.preview) { const ep = project.episodes.find(e => e.id === b.dataset.preview); return modal(`第 ${ep.number} 集 · 原片`, `<video controls autoplay playsinline style="width:100%;max-height:60vh" src="${fileUrl(ep.file)}"></video>`, async () => {}, "关闭"); }
   if (b.dataset.editEpisode) {
     const ep = project.episodes.find(e => e.id === b.dataset.editEpisode);

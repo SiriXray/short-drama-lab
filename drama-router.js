@@ -19,6 +19,16 @@ const uuid = () => crypto.randomUUID();
 const text = (value, max = 3000) => String(value ?? "").trim().slice(0, max);
 const validId = value => /^[a-f0-9-]{36}$/.test(value);
 const bytesLimit = 500 * 1024 * 1024;
+const MIN_PREVIEW_SECONDS = 20;
+
+// Hongguo's public web player only exposes a ~10 s preview clip; full episodes sit
+// behind the app's protected playback endpoint, so say that instead of a generic 403.
+function previewOnlyMessage(inputUrl) {
+  let hostname = "";
+  try { hostname = new URL(String(inputUrl || "")).hostname.replace(/^www\./, ""); } catch { hostname = ""; }
+  if (hostname === "hongguoduanju.com") return "红果网页端只公开约 10 秒预告，完整集在 App 内受保护，无法通过公开网页获取。请改用授权片源：本地完整分集文件，或可访问的直链 / HLS。";
+  return "网页没有公开可下载的完整视频，请补充授权片源（本地文件、直链或 HLS m3u8）。";
+}
 
 function createStore(root) {
   fs.mkdirSync(root, { recursive: true });
@@ -142,15 +152,29 @@ function createDramaRouter(deps, options = {}) {
     if (req.headers["sec-fetch-site"] === "cross-site") throw media.fail("不允许跨站请求。", 403);
   }
   function idle(p) { if (engine.active.has(p.id)) throw media.fail("运行中不可修改，请先暂停。", 409); }
-  async function downloadEpisode(p, ep, url) {
+  async function downloadEpisode(p, ep, url, options = {}) {
     const extension = ".mp4";
     const rel = `episodes/${ep.id}-${uuid()}${extension}`;
-    fs.mkdirSync(path.dirname(store.file(p.id, rel)), { recursive: true });
-    await (deps.remoteContent || media.remoteContent)(url, deps.isPrivateAddress, { destination: store.file(p.id, rel), limit: bytesLimit });
-    const metadata = await (deps.probe || media.probe)(store.file(p.id, rel));
-    if (metadata.duration > 900) throw media.fail("每集最多 15 分钟，请分段导入。");
-    ep.file = rel; ep.metadata = metadata; ep.videoUrl = url; ep.access = "ready"; ep.error = "";
-    ep.shots = []; ep.summary = ""; invalidate(p, [ep.id]); store.save(p);
+    const destination = store.file(p.id, rel);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    try {
+      if ((deps.isHlsUrl || media.isHlsUrl)(url)) {
+        await (deps.downloadHls || media.downloadHls)(url, deps.isPrivateAddress, { destination, limit: bytesLimit, onProgress: ({ index, total }) => { if (index === total || index % 50 === 0) console.log(`[hls] ${ep.id} ${index}/${total} segments`); } });
+      } else {
+        await (deps.remoteContent || media.remoteContent)(url, deps.isPrivateAddress, { destination, limit: bytesLimit });
+      }
+      const metadata = await (deps.probe || media.probe)(destination);
+      if (metadata.duration > 900) throw media.fail("每集最多 15 分钟，请分段导入。");
+      if (metadata.duration < MIN_PREVIEW_SECONDS && options.allowPreview !== true) {
+        throw media.fail(`该片源只有 ${Math.max(1, Math.round(metadata.duration))} 秒，通常是平台预览片而不是完整集。请提供完整片源，或显式允许导入短视频。`, 422);
+      }
+      ep.file = rel; ep.metadata = metadata; ep.videoUrl = url; ep.access = "ready"; ep.error = "";
+      ep.preview = metadata.duration < MIN_PREVIEW_SECONDS;
+      ep.shots = []; ep.summary = ""; invalidate(p, [ep.id]); store.save(p);
+    } catch (error) {
+      fs.rmSync(destination, { force: true });
+      throw error;
+    }
   }
   async function importEpisode(p, ep) {
     try {
@@ -160,7 +184,7 @@ function createDramaRouter(deps, options = {}) {
         const items = media.parseCatalog(source.buffer.toString("utf8"), source.contentType, source.url);
         videoUrl = items.flatMap(item => item.episodes).find(e => e.videoUrl)?.videoUrl;
       }
-      if (!videoUrl) throw media.fail("本集未公开可下载视频，请补充授权片源。", 403);
+      if (!videoUrl) throw media.fail(previewOnlyMessage(ep.pageUrl), 403);
       await downloadEpisode(p, ep, videoUrl);
     } catch (error) { ep.error = text(error.message); ep.access = "permission-required"; store.save(p); throw error; }
   }
@@ -488,13 +512,13 @@ function createDramaRouter(deps, options = {}) {
         if (!sourceUrl) throw media.fail("该集未公开视频，请补充有权限的视频文件或直链。", 403);
         let videoUrl = sourceUrl;
         try {
-          if (!/\.(mp4|mov|webm)(?:\?|$)/i.test(sourceUrl) && body.direct !== true) {
+          if (!/\.(mp4|mov|webm|m3u8)(?:\?|$)/i.test(sourceUrl) && body.direct !== true) {
             const source = await (deps.remoteContent || media.remoteContent)(sourceUrl, deps.isPrivateAddress);
             const items = media.parseCatalog(source.buffer.toString("utf8"), source.contentType, source.url);
             videoUrl = items.flatMap(item => item.episodes).find(e => e.videoUrl)?.videoUrl;
-            if (!videoUrl) throw media.fail("网页没有公开可下载的视频，请补充授权片源。", 403);
+            if (!videoUrl) throw media.fail(previewOnlyMessage(sourceUrl), 403);
           }
-          await downloadEpisode(p, ep, videoUrl);
+          await downloadEpisode(p, ep, videoUrl, { allowPreview: body.allowPreview === true });
           ep.sourceUrl = sourceUrl;
           if (!p.episodes.some(e => e.id === ep.id)) p.episodes.push(ep);
           store.save(p); send(res, 201, p); return true;

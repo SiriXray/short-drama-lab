@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { createDramaRouter } = require("../drama-router");
-function fixture(root, mediaFiles = {}) {
+function fixture(root, mediaFiles = {}, overrides = {}) {
   let router;
   const requests = [];
   const write = (file, content) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, content); };
@@ -44,7 +44,7 @@ function fixture(root, mediaFiles = {}) {
     reviewImageAt: async (_file, output) => putImage(output),
     geminiReview: async () => ({ summary: "Sampled frames show no clear anomaly", uncertain: false, findings: [] }),
   };
-  router = createDramaRouter(deps, { root, librarySources: [] });
+  router = createDramaRouter({ ...deps, ...overrides }, { root, librarySources: [] });
   return { router, requests, deps };
 }
 module.exports = { fixture };
